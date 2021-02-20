@@ -1,226 +1,334 @@
-# importing required libraries 
-from PyQt5.QtCore import * 
-from PyQt5.QtWidgets import * 
-from PyQt5.QtGui import * 
-from PyQt5.QtWebEngineWidgets import * 
-from PyQt5.QtPrintSupport import * 
-import os 
-import sys 
-  
-# main window 
-class MainWindow(QMainWindow): 
-  
-    # constructor 
-    def __init__(self, *args, **kwargs): 
-        super(MainWindow, self).__init__(*args, **kwargs) 
-  
-        # creating a tab widget 
-        self.tabs = QTabWidget() 
-  
-        # making document mode true 
-        self.tabs.setDocumentMode(True) 
-  
-        # adding action when double clicked 
-        self.tabs.tabBarDoubleClicked.connect(self.tab_open_doubleclick) 
-  
-        # adding action when tab is changed 
-        self.tabs.currentChanged.connect(self.current_tab_changed) 
-  
-        # making tabs closeable 
-        self.tabs.setTabsClosable(True) 
-  
-        # adding action when tab close is requested 
-        self.tabs.tabCloseRequested.connect(self.close_current_tab) 
-  
-        # making tabs as central widget 
-        self.setCentralWidget(self.tabs) 
-  
-        # creating a status bar 
-        self.status = QStatusBar() 
-  
-        # setting status bar to the main window 
-        self.setStatusBar(self.status) 
-  
-        # creating a tool bar for navigation 
-        navtb = QToolBar("Navigation") 
-  
-        # adding tool bar tot he main window 
-        self.addToolBar(navtb) 
-  
-        # creating back action 
-        back_btn = QAction("Back", self) 
-  
-        # setting status tip 
-        back_btn.setStatusTip("Back to previous page") 
-  
-        # adding action to back button 
-        # making current tab to go back 
-        back_btn.triggered.connect(lambda: self.tabs.currentWidget().back()) 
-  
-        # adding this to the navigation tool bar 
-        navtb.addAction(back_btn) 
-  
-        # similarly adding next button 
-        next_btn = QAction("Forward", self) 
-        next_btn.setStatusTip("Forward to next page") 
-        next_btn.triggered.connect(lambda: self.tabs.currentWidget().forward()) 
-        navtb.addAction(next_btn) 
-  
-        # similarly adding reload button 
-        reload_btn = QAction("Reload", self) 
-        reload_btn.setStatusTip("Reload page") 
-        reload_btn.triggered.connect(lambda: self.tabs.currentWidget().reload()) 
-        navtb.addAction(reload_btn) 
-  
-        # creating home action 
-        home_btn = QAction("Home", self) 
-        home_btn.setStatusTip("Go home") 
-  
-        # adding action to home button 
-        home_btn.triggered.connect(self.navigate_home) 
-        navtb.addAction(home_btn) 
-  
-        # adding a separator 
-        navtb.addSeparator() 
-  
-        # creating a line edit widget for URL 
-        self.urlbar = QLineEdit() 
-  
-        # adding action to line edit when return key is pressed 
-        self.urlbar.returnPressed.connect(self.navigate_to_url) 
-  
-        # adding line edit to tool bar 
-        navtb.addWidget(self.urlbar) 
-  
-        # similarly adding stop action 
-        stop_btn = QAction("Stop", self) 
-        stop_btn.setStatusTip("Stop loading current page") 
-        stop_btn.triggered.connect(lambda: self.tabs.currentWidget().stop()) 
-        navtb.addAction(stop_btn) 
-  
-        # creating first tab 
-        self.add_new_tab(QUrl('None'), 'Homepage') 
-  
-        # showing all the components 
-        self.show() 
-  
-        # setting window title 
-        self.setWindowTitle("WhirlBrowser") 
-  
-    # method for adding new tab 
-    def add_new_tab(self, qurl = None, label ="Blank"): 
-  
-        # if url is blank 
-        if qurl is None: 
-            qurl = QUrl('None') 
-  
-        # creating a QWebEngineView object 
-        browser = QWebEngineView() 
-  
-        # setting url to browser 
-        browser.setUrl(qurl) 
-  
-        # setting tab index 
-        i = self.tabs.addTab(browser, label) 
-        self.tabs.setCurrentIndex(i) 
-  
-        # adding action to the browser when url is changed 
-        # update the url 
-        browser.urlChanged.connect(lambda qurl, browser = browser: 
-                                   self.update_urlbar(qurl, browser)) 
-  
-        # adding action to the browser when loading is finished 
-        # set the tab title 
-        browser.loadFinished.connect(lambda _, i = i, browser = browser: 
-                                     self.tabs.setTabText(i, browser.page().title())) 
-  
-    # when double clicked is pressed on tabs 
-    def tab_open_doubleclick(self, i): 
-  
-        # checking index i.e 
-        # No tab under the click 
-        if i == -1: 
-            # creating a new tab 
-            self.add_new_tab() 
-  
-    # wen tab is changed 
-    def current_tab_changed(self, i): 
-  
-        # get the curl 
-        qurl = self.tabs.currentWidget().url() 
-  
-        # update the url 
-        self.update_urlbar(qurl, self.tabs.currentWidget()) 
-  
-        # update the title 
-        self.update_title(self.tabs.currentWidget()) 
-  
-    # when tab is closed 
-    def close_current_tab(self, i): 
-  
-        # if there is only one tab 
-        if self.tabs.count() < 2: 
-            # do nothing 
+from cefpython3 import cefpython as cef
+import ctypes
+try:
+    import tkinter as tk
+except ImportError:
+    import Tkinter as tk
+import sys
+import os
+import platform
+import logging as _logging
+
+WindowUtils = cef.WindowUtils()
+
+WINDOWS = (platform.system() == "Windows")
+LINUX = (platform.system() == "Linux")
+MAC = (platform.system() == "Darwin")
+
+logger = _logging.getLogger("tkinter_.py")
+
+IMAGE_EXT = ".png" if tk.TkVersion > 8.5 else ".gif"
+
+
+class MainFrame(tk.Frame):
+
+    def __init__(self, root):
+        self.browser_frame = None
+        self.navigation_bar = None
+
+        root.geometry("900x640")
+        tk.Grid.rowconfigure(root, 0, weight=1)
+        tk.Grid.columnconfigure(root, 0, weight=1)
+
+        tk.Frame.__init__(self, root)
+        self.master.title("WhirlBrowser")
+        self.master.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.master.bind("<Configure>", self.on_root_configure)
+        self.setup_icon()
+        self.bind("<Configure>", self.on_configure)
+        self.bind("<FocusIn>", self.on_focus_in)
+        self.bind("<FocusOut>", self.on_focus_out)
+
+        self.navigation_bar = NavigationBar(self)
+        self.navigation_bar.grid(row=0, column=0,
+                                 sticky=(tk.N + tk.S + tk.E + tk.W))
+        tk.Grid.rowconfigure(self, 0, weight=0)
+        tk.Grid.columnconfigure(self, 0, weight=0)
+
+        self.browser_frame = BrowserFrame(self, self.navigation_bar)
+        self.browser_frame.grid(row=1, column=0,
+                                sticky=(tk.N + tk.S + tk.E + tk.W))
+        tk.Grid.rowconfigure(self, 1, weight=1)
+        tk.Grid.columnconfigure(self, 0, weight=1)
+
+        self.pack(fill=tk.BOTH, expand=tk.YES)
+
+    def on_root_configure(self, _):
+        logger.debug("MainFrame.on_root_configure")
+        if self.browser_frame:
+            self.browser_frame.on_root_configure()
+
+    def on_configure(self, event):
+        logger.debug("MainFrame.on_configure")
+        if self.browser_frame:
+            width = event.width
+            height = event.height
+            if self.navigation_bar:
+                height = height - self.navigation_bar.winfo_height()
+            self.browser_frame.on_mainframe_configure(width, height)
+
+    def on_focus_in(self, _):
+        logger.debug("MainFrame.on_focus_in")
+
+    def on_focus_out(self, _):
+        logger.debug("MainFrame.on_focus_out")
+
+    def on_close(self):
+        if self.browser_frame:
+            self.browser_frame.on_root_close()
+        self.master.destroy()
+
+    def get_browser(self):
+        if self.browser_frame:
+            return self.browser_frame.browser
+        return None
+
+    def get_browser_frame(self):
+        if self.browser_frame:
+            return self.browser_frame
+        return None
+
+    def setup_icon(self):
+        resources = os.path.join(os.path.dirname(__file__), "resources")
+        icon_path = os.path.join(resources, "tkinter"+IMAGE_EXT)
+        if os.path.exists(icon_path):
+            self.icon = tk.PhotoImage(file=icon_path)
+            # noinspection PyProtectedMember
+            self.master.call("wm", "iconphoto", self.master._w, self.icon)
+
+
+class BrowserFrame(tk.Frame):
+
+    def __init__(self, master, navigation_bar=None):
+        self.navigation_bar = navigation_bar
+        self.closing = False
+        self.browser = None
+        tk.Frame.__init__(self, master)
+        self.bind("<FocusIn>", self.on_focus_in)
+        self.bind("<FocusOut>", self.on_focus_out)
+        self.bind("<Configure>", self.on_configure)
+        self.focus_set()
+
+    def embed_browser(self):
+        window_info = cef.WindowInfo()
+        rect = [0, 0, self.winfo_width(), self.winfo_height()]
+        window_info.SetAsChild(self.get_window_handle(), rect)
+        self.browser = cef.CreateBrowserSync(window_info,
+                                             url="file:///E:/Aayush/Programming/Projects/test.html")
+        assert self.browser
+        self.browser.SetClientHandler(LoadHandler(self))
+        self.browser.SetClientHandler(FocusHandler(self))
+        self.message_loop_work()
+
+    def get_window_handle(self):
+        if self.winfo_id() > 0:
+            return self.winfo_id()
+        elif MAC:
+            from AppKit import NSApp
+            import objc
+            return objc.pyobjc_id(NSApp.windows()[-1].contentView())
+        else:
+            raise Exception("Couldn't obtain window handle")
+
+    def message_loop_work(self):
+        cef.MessageLoopWork()
+        self.after(10, self.message_loop_work)
+
+    def on_configure(self, _):
+        if not self.browser:
+            self.embed_browser()
+
+    def on_root_configure(self):
+        if self.browser:
+            self.browser.NotifyMoveOrResizeStarted()
+
+    def on_mainframe_configure(self, width, height):
+        if self.browser:
+            if WINDOWS:
+                ctypes.windll.user32.SetWindowPos(
+                    self.browser.GetWindowHandle(), 0,
+                    0, 0, width, height, 0x0002)
+            elif LINUX:
+                self.browser.SetBounds(0, 0, width, height)
+            self.browser.NotifyMoveOrResizeStarted()
+
+    def on_focus_in(self, _):
+        logger.debug("BrowserFrame.on_focus_in")
+        if self.browser:
+            self.browser.SetFocus(True)
+
+    def on_focus_out(self, _):
+        logger.debug("BrowserFrame.on_focus_out")
+        if self.browser:
+            self.browser.SetFocus(False)
+
+    def on_root_close(self):
+        if self.browser:
+            self.browser.CloseBrowser(True)
+            self.clear_browser_references()
+        self.destroy()
+
+    def clear_browser_references(self):
+        self.browser = None
+
+
+class LoadHandler(object):
+
+    def __init__(self, browser_frame):
+        self.browser_frame = browser_frame
+
+    def OnLoadStart(self, browser, **_):
+        if self.browser_frame.master.navigation_bar:
+            self.browser_frame.master.navigation_bar.set_url(browser.GetUrl())
+
+
+class FocusHandler(object):
+
+    def __init__(self, browser_frame):
+        self.browser_frame = browser_frame
+
+    def OnTakeFocus(self, next_component, **_):
+        logger.debug("FocusHandler.OnTakeFocus, next={next}"
+                     .format(next=next_component))
+
+    def OnSetFocus(self, source, **_):
+        logger.debug("FocusHandler.OnSetFocus, source={source}"
+                     .format(source=source))
+        return False
+
+    def OnGotFocus(self, **_):
+        """Fix CEF focus issues (#255). Call browser frame's focus_set
+           to get rid of type cursor in url entry widget."""
+        logger.debug("FocusHandler.OnGotFocus")
+        self.browser_frame.focus_set()
+
+
+class NavigationBar(tk.Frame):
+    def __init__(self, master):
+        self.back_state = tk.NONE
+        self.forward_state = tk.NONE
+        self.back_image = None
+        self.forward_image = None
+        self.reload_image = None
+
+        tk.Frame.__init__(self, master)
+        resources = os.path.join(os.path.dirname(__file__), "resources")
+
+        # Back button
+        back_png = os.path.join(resources, "back"+IMAGE_EXT)
+        if os.path.exists(back_png):
+            self.back_image = tk.PhotoImage(file=back_png)
+        self.back_button = tk.Button(self, image=self.back_image,
+                                     command=self.go_back)
+        self.back_button.grid(row=0, column=0)
+
+        # Forward button
+        forward_png = os.path.join(resources, "forward"+IMAGE_EXT)
+        if os.path.exists(forward_png):
+            self.forward_image = tk.PhotoImage(file=forward_png)
+        self.forward_button = tk.Button(self, image=self.forward_image,
+                                        command=self.go_forward)
+        self.forward_button.grid(row=0, column=1)
+
+        # Reload button
+        reload_png = os.path.join(resources, "reload"+IMAGE_EXT)
+        if os.path.exists(reload_png):
+            self.reload_image = tk.PhotoImage(file=reload_png)
+        self.reload_button = tk.Button(self, image=self.reload_image,
+                                       command=self.reload)
+        self.reload_button.grid(row=0, column=2)
+
+        # Url entry
+        self.url_entry = tk.Entry(self)
+        self.url_entry.bind("<FocusIn>", self.on_url_focus_in)
+        self.url_entry.bind("<FocusOut>", self.on_url_focus_out)
+        self.url_entry.bind("<Return>", self.on_load_url)
+        self.url_entry.bind("<Button-1>", self.on_button1)
+        self.url_entry.grid(row=0, column=3,
+                            sticky=(tk.N + tk.S + tk.E + tk.W))
+        tk.Grid.rowconfigure(self, 0, weight=100)
+        tk.Grid.columnconfigure(self, 3, weight=100)
+
+        # Update state of buttons
+        self.update_state()
+
+    def go_back(self):
+        if self.master.get_browser():
+            self.master.get_browser().GoBack()
+
+    def go_forward(self):
+        if self.master.get_browser():
+            self.master.get_browser().GoForward()
+
+    def reload(self):
+        if self.master.get_browser():
+            self.master.get_browser().Reload()
+
+    def set_url(self, url):
+        self.url_entry.delete(0, tk.END)
+        self.url_entry.insert(0, url)
+
+    def on_url_focus_in(self, _):
+        logger.debug("NavigationBar.on_url_focus_in")
+
+    def on_url_focus_out(self, _):
+        logger.debug("NavigationBar.on_url_focus_out")
+
+    def on_load_url(self, _):
+        if self.master.get_browser():
+            self.master.get_browser().StopLoad()
+            self.master.get_browser().LoadUrl(self.url_entry.get())
+
+    def on_button1(self, _):
+        """Fix CEF focus issues (#255). See also FocusHandler.OnGotFocus."""
+        logger.debug("NavigationBar.on_button1")
+        self.master.master.focus_force()
+
+    def update_state(self):
+        browser = self.master.get_browser()
+        if not browser:
+            if self.back_state != tk.DISABLED:
+                self.back_button.config(state=tk.DISABLED)
+                self.back_state = tk.DISABLED
+            if self.forward_state != tk.DISABLED:
+                self.forward_button.config(state=tk.DISABLED)
+                self.forward_state = tk.DISABLED
+            self.after(100, self.update_state)
             return
-  
-        # else remove the tab 
-        self.tabs.removeTab(i) 
-  
-    # method for updating the title 
-    def update_title(self, browser): 
-  
-        # if signal is not from the current tab 
-        if browser != self.tabs.currentWidget(): 
-            # do nothing 
-            return
-  
-        # get the page title 
-        title = self.tabs.currentWidget().page().title() 
-  
-        # set the window title 
-        self.setWindowTitle("% s - WhirlBrowser" % title) 
-  
-    # action to go to home 
-    def navigate_home(self): 
-        self.tabs.currentWidget().setUrl(QUrl("None"))
-  
-    # method for navigate to url 
-    def navigate_to_url(self): 
-  
-        # get the line edit text 
-        # convert it to QUrl object 
-        q = QUrl(self.urlbar.text()) 
-  
-        # if scheme is blank 
-        if q.scheme() == "": 
-            # set scheme 
-            q.setScheme("http") 
-  
-        # set the url 
-        self.tabs.currentWidget().setUrl(q) 
-  
-    # method to update the url 
-    def update_urlbar(self, q, browser = None): 
-  
-        # If this signal is not from the current tab, ignore 
-        if browser != self.tabs.currentWidget(): 
-  
-            return
-  
-        # set text to the url bar 
-        self.urlbar.setText(q.toString()) 
-  
-        # set cursor position 
-        self.urlbar.setCursorPosition(0) 
-  
-# creating a PyQt5 application 
-app = QApplication(sys.argv) 
-  
-# setting name to the application 
-app.setApplicationName("WhirlBrowser") 
-  
-# creating MainWindow object 
-window = MainWindow() 
-  
-# loop 
-app.exec_() 
+        if browser.CanGoBack():
+            if self.back_state != tk.NORMAL:
+                self.back_button.config(state=tk.NORMAL)
+                self.back_state = tk.NORMAL
+        else:
+            if self.back_state != tk.DISABLED:
+                self.back_button.config(state=tk.DISABLED)
+                self.back_state = tk.DISABLED
+        if browser.CanGoForward():
+            if self.forward_state != tk.NORMAL:
+                self.forward_button.config(state=tk.NORMAL)
+                self.forward_state = tk.NORMAL
+        else:
+            if self.forward_state != tk.DISABLED:
+                self.forward_button.config(state=tk.DISABLED)
+                self.forward_state = tk.DISABLED
+        self.after(100, self.update_state)
+
+
+if __name__ == '__main__':
+    logger.setLevel(_logging.INFO)
+    stream_handler = _logging.StreamHandler()
+    formatter = _logging.Formatter("[%(filename)s] %(message)s")
+    stream_handler.setFormatter(formatter)
+    logger.addHandler(stream_handler)
+    logger.info("CEF Python {ver}".format(ver=cef.__version__))
+    logger.info("Python {ver} {arch}".format(
+            ver=platform.python_version(), arch=platform.architecture()[0]))
+    logger.info("Tk {ver}".format(ver=tk.Tcl().eval('info patchlevel')))
+    assert cef.__version__ >= "55.3", "CEF Python v55.3+ required to run this"
+    sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
+    root = tk.Tk()
+    app = MainFrame(root)
+    cef.Initialize()
+    
+    app.mainloop()
+    cef.Shutdown()
