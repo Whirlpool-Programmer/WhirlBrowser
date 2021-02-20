@@ -9,6 +9,15 @@ import os
 import platform
 import logging as _logging
 
+terms = """
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+"""
 WindowUtils = cef.WindowUtils()
 
 WINDOWS = (platform.system() == "Windows")
@@ -25,7 +34,7 @@ class MainFrame(tk.Frame):
     def __init__(self, root):
         self.browser_frame = None
         self.navigation_bar = None
-
+        root.config(menu = Menubar)
         root.geometry("900x640")
         tk.Grid.rowconfigure(root, 0, weight=1)
         tk.Grid.columnconfigure(root, 0, weight=1)
@@ -218,7 +227,7 @@ class NavigationBar(tk.Frame):
         back_png = os.path.join(resources, "back"+IMAGE_EXT)
         if os.path.exists(back_png):
             self.back_image = tk.PhotoImage(file=back_png)
-        self.back_button = tk.Button(self, image=self.back_image,
+        self.back_button = tk.Button(self, text = "Backward",
                                      command=self.go_back)
         self.back_button.grid(row=0, column=0)
 
@@ -226,7 +235,7 @@ class NavigationBar(tk.Frame):
         forward_png = os.path.join(resources, "forward"+IMAGE_EXT)
         if os.path.exists(forward_png):
             self.forward_image = tk.PhotoImage(file=forward_png)
-        self.forward_button = tk.Button(self, image=self.forward_image,
+        self.forward_button = tk.Button(self, text = "Forward",
                                         command=self.go_forward)
         self.forward_button.grid(row=0, column=1)
 
@@ -234,7 +243,7 @@ class NavigationBar(tk.Frame):
         reload_png = os.path.join(resources, "reload"+IMAGE_EXT)
         if os.path.exists(reload_png):
             self.reload_image = tk.PhotoImage(file=reload_png)
-        self.reload_button = tk.Button(self, image=self.reload_image,
+        self.reload_button = tk.Button(self, text = "Reload",
                                        command=self.reload)
         self.reload_button.grid(row=0, column=2)
 
@@ -313,8 +322,27 @@ class NavigationBar(tk.Frame):
                 self.forward_state = tk.DISABLED
         self.after(100, self.update_state)
 
-
+def about():
+    window = tk.Toplevel(bg = "#0084FF")
+    window.title("About WhirlBrowser")
+    window.overrideredirect(0)
+    #window.resizable(False, False)
+    head = tk.Label(window, text = "WhirlBrowser 1.0.tk", font = ("Segoe", 20),fg = "white", bg = "#0084FF")
+    head.grid()
+    texts = tk.Label(window, text = "Running on {}\nMade on Python 3.7.0\n\n(c) 2021 Whirlpool-Programmer\n{}\n\nThe Tkinter Feather Logo is a copyright to PSF (Python Software Foundations)\nVersion 1.0.tk (Made on Tkinter)".format(platform.platform(),terms), font = ("Segoe",10),fg = "white", bg = "#0084FF")
+    texts.grid()
+    window.mainloop()
 if __name__ == '__main__':
+    root = tk.Tk()
+    Menubar = tk.Menu(root, activebackground ="#0084FF", activeforeground = "#FFFFFF",bg = "#FFFFFF", fg = "#0084FF" ,font = "Segoe")
+    Filemenu = tk.Menu(Menubar, tearoff = 0)
+    Filemenu.add_command(label="Exit", command=root.destroy)
+    Menubar.add_cascade(label="File", menu=Filemenu)
+
+    Helpmenu = tk.Menu(Menubar, tearoff = 0)
+    Helpmenu.add_command(label = "About WhirlBrowser 1.0.tk",command = about)
+    Menubar.add_cascade(label = "About", menu=Helpmenu)
+
     logger.setLevel(_logging.INFO)
     stream_handler = _logging.StreamHandler()
     formatter = _logging.Formatter("[%(filename)s] %(message)s")
@@ -326,7 +354,6 @@ if __name__ == '__main__':
     logger.info("Tk {ver}".format(ver=tk.Tcl().eval('info patchlevel')))
     assert cef.__version__ >= "55.3", "CEF Python v55.3+ required to run this"
     sys.excepthook = cef.ExceptHook  # To shutdown all CEF processes on error
-    root = tk.Tk()
     app = MainFrame(root)
     cef.Initialize()
     
